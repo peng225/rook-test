@@ -51,8 +51,11 @@ $(MANIFEST_DIR)/cluster-test.yaml: | $(MANIFEST_DIR) $(YQ)
 	$(YQ) -i '(select(.spec.storage) | .spec.storage.useAllDevices) = false' $@
 	$(YQ) -i '(select(.spec.storage) | .spec.storage.nodes) = [{"name": "minikube", "devices": [{"name": "loop0"}, {"name": "loop1"}]}]' $@
 
+$(MANIFEST_DIR)/toolbox.yaml: | $(MANIFEST_DIR)
+	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/toolbox.yaml -o $@
+
 .PHONY: gen
-gen: $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/operator.yaml $(MANIFEST_DIR)/cluster-test.yaml
+gen: $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/operator.yaml $(MANIFEST_DIR)/cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml
 
 .PHONY: create-cluster
 create-cluster: $(MINIKUBE)
@@ -61,12 +64,12 @@ create-cluster: $(MINIKUBE)
 		dd if=/dev/zero of=loop$${i} bs=1 count=0 seek=6G; \
 		sudo losetup /dev/loop$${i} loop$${i}; \
 	done
+	lsblk
 
 .PHONY: deploy
-deploy: $(KUBECTL) $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/operator.yaml $(MANIFEST_DIR)/cluster-test.yaml
+deploy: $(KUBECTL) $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/operator.yaml $(MANIFEST_DIR)/cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/crds.yaml -f $(MANIFEST_DIR)/common.yaml -f $(MANIFEST_DIR)/operator.yaml
-	$(KUBECTL) apply -f $(MANIFEST_DIR)/cluster-test.yaml
-# tools and RGW
+	$(KUBECTL) apply -f $(MANIFEST_DIR)/cluster-test.yaml -f $(MANIFEST_DIR)/toolbox.yaml
 
 .PHONY: clean
 clean:
