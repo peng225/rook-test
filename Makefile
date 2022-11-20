@@ -13,6 +13,8 @@ OSD_COUNT := 2
 
 MANIFEST_DIR := manifest
 
+MANIFEST_FILES := $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/operator.yaml $(MANIFEST_DIR)/cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bucket-delete.yaml $(MANIFEST_DIR)/object-bucket-claim-delete.yaml
+
 $(BIN_DIR):
 	mkdir $(BIN_DIR)
 
@@ -34,28 +36,20 @@ $(YQ): | $(BIN_DIR)
 $(MANIFEST_DIR):
 	mkdir $(MANIFEST_DIR)
 
-$(MANIFEST_DIR)/crds.yaml: | $(MANIFEST_DIR)
-	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/crds.yaml -o $@
+$(MANIFEST_FILES): | $(MANIFEST_DIR)
+	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/$(notdir $@) -o $@
 
-$(MANIFEST_DIR)/common.yaml: | $(MANIFEST_DIR)
-	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/common.yaml -o $@
+$(MANIFEST_DIR)/my-operator.yaml: $(MANIFEST_DIR)/operator.yaml | $(MANIFEST_DIR) $(YQ)
+	$(YQ) '(select(.metadata.name == "rook-ceph-operator-config") | .data.ROOK_CEPH_ALLOW_LOOP_DEVICES) = "true"' $< > $@
 
-$(MANIFEST_DIR)/operator.yaml: | $(MANIFEST_DIR) $(YQ)
-	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/operator.yaml -o $@
-	$(YQ) -i '(select(.metadata.name == "rook-ceph-operator-config") | .data.ROOK_CEPH_ALLOW_LOOP_DEVICES) = "true"' $@
-
-$(MANIFEST_DIR)/cluster-test.yaml: | $(MANIFEST_DIR) $(YQ)
-	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/cluster-test.yaml -o $@
-	$(YQ) -i '(select(.spec.cephVersion) | .spec.cephVersion.image) = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' $@
-	$(YQ) -i '(select(.spec.storage) | .spec.storage.useAllNodes) = false' $@
-	$(YQ) -i '(select(.spec.storage) | .spec.storage.useAllDevices) = false' $@
-	$(YQ) -i '(select(.spec.storage) | .spec.storage.nodes) = [{"name": "minikube", "devices": [{"name": "loop0"}, {"name": "loop1"}]}]' $@
-
-$(MANIFEST_DIR)/toolbox.yaml: | $(MANIFEST_DIR)
-	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/toolbox.yaml -o $@
+$(MANIFEST_DIR)/my-cluster-test.yaml: $(MANIFEST_DIR)/cluster-test.yaml | $(MANIFEST_DIR) $(YQ)
+	$(YQ) '(select(.spec.cephVersion) | .spec.cephVersion.image) = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' $< | \
+	$(YQ) '(select(.spec.storage) | .spec.storage.useAllNodes) = false' | \
+	$(YQ) '(select(.spec.storage) | .spec.storage.useAllDevices) = false' | \
+	$(YQ) '(select(.spec.storage) | .spec.storage.nodes) = [{"name": "minikube", "devices": [{"name": "loop0"}, {"name": "loop1"}]}]' > $@
 
 .PHONY: gen
-gen: $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/operator.yaml $(MANIFEST_DIR)/cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml
+gen: $(MANIFEST_FILES) $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml
 
 .PHONY: create-cluster
 create-cluster: $(MINIKUBE)
@@ -65,11 +59,21 @@ create-cluster: $(MINIKUBE)
 		sudo losetup /dev/loop$${i} loop$${i}; \
 	done
 	lsblk
+	docker pull rook/ceph:v$(ROOK_VERSION)
+	$(MINIKUBE) image load rook/ceph:v$(ROOK_VERSION)
+	docker pull quay.io/ceph/ceph:v$(CEPH_VERSION)
+	$(MINIKUBE) image load quay.io/ceph/ceph:v$(CEPH_VERSION)
 
 .PHONY: deploy
-deploy: $(KUBECTL) $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/operator.yaml $(MANIFEST_DIR)/cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml
-	$(KUBECTL) apply -f $(MANIFEST_DIR)/crds.yaml -f $(MANIFEST_DIR)/common.yaml -f $(MANIFEST_DIR)/operator.yaml
-	$(KUBECTL) apply -f $(MANIFEST_DIR)/cluster-test.yaml -f $(MANIFEST_DIR)/toolbox.yaml
+deploy: $(KUBECTL) $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml
+	$(KUBECTL) apply -f $(MANIFEST_DIR)/crds.yaml -f $(MANIFEST_DIR)/common.yaml -f $(MANIFEST_DIR)/my-operator.yaml
+	$(KUBECTL) apply -f $(MANIFEST_DIR)/my-cluster-test.yaml -f $(MANIFEST_DIR)/toolbox.yaml
+
+.PHONY: rgw
+rgw: $(KUBECTL) $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bucket-delete.yaml $(MANIFEST_DIR)/object-bucket-claim-delete.yaml
+	$(KUBECTL) apply -f $(MANIFEST_DIR)/object-test.yaml
+	$(KUBECTL) apply -f $(MANIFEST_DIR)/storageclass-bucket-delete.yaml
+	$(KUBECTL) apply -f $(MANIFEST_DIR)/object-bucket-claim-delete.yaml
 
 .PHONY: clean
 clean:
