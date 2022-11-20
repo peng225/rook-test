@@ -9,7 +9,7 @@ KUBECTL := $(BIN_DIR)/kubectl_$(KUBECTL_VERSION)
 MINIKUBE := $(BIN_DIR)/minikube_$(MINIKUBE_VERSION)
 YQ := $(BIN_DIR)/yq_$(YQ_VERSION)
 
-OSD_COUNT := 2
+OSD_COUNT := 1
 
 MANIFEST_DIR := manifest
 
