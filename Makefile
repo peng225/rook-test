@@ -59,10 +59,8 @@ create-cluster: $(MINIKUBE)
 		sudo losetup /dev/loop$${i} loop$${i}; \
 	done
 	lsblk
-	docker pull rook/ceph:v$(ROOK_VERSION)
-	$(MINIKUBE) image load rook/ceph:v$(ROOK_VERSION)
-	docker pull quay.io/ceph/ceph:v$(CEPH_VERSION)
-	$(MINIKUBE) image load quay.io/ceph/ceph:v$(CEPH_VERSION)
+	$(MINIKUBE) ssh -- docker pull rook/ceph:v$(ROOK_VERSION)
+	$(MINIKUBE) ssh -- docker pull quay.io/ceph/ceph:v$(CEPH_VERSION)
 
 .PHONY: deploy
 deploy: $(KUBECTL) $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml
