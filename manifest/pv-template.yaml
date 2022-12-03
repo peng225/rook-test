@@ -1,0 +1,24 @@
+# Copied from https://github.com/rook/rook/blob/fe1ef6c222f22c07098ecaa4cb8baf31c8a6073f/deploy/examples/cluster-on-local-pvc.yaml#L90-L111
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: pv
+spec:
+  storageClassName: local
+  capacity:
+    storage: 6Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  # PV for OSD must be a block volume.
+  volumeMode: Block
+  local:
+    path: /dev/loop
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - minikube

@@ -11,6 +11,8 @@ YQ := $(BIN_DIR)/yq_$(YQ_VERSION)
 
 OSD_COUNT := 1
 OBJECT_STORE_CONSUMER_NS := default
+# "raw" or "pvc"
+DEVICE_MODE := raw
 
 MANIFEST_DIR := manifest
 
@@ -46,8 +48,16 @@ $(MANIFEST_DIR)/my-operator.yaml: $(MANIFEST_DIR)/operator.yaml | $(MANIFEST_DIR
 $(MANIFEST_DIR)/my-cluster-test.yaml: $(MANIFEST_DIR)/cluster-test.yaml | $(MANIFEST_DIR) $(YQ)
 	$(YQ) '(select(.spec.cephVersion) | .spec.cephVersion.image) = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' $< | \
 	$(YQ) '(select(.spec.storage) | .spec.storage.useAllNodes) = false' | \
-	$(YQ) '(select(.spec.storage) | .spec.storage.useAllDevices) = false' | \
-	$(YQ) '(select(.spec.storage) | .spec.storage.nodes) = [{"name": "minikube", "devices": [{"name": "loop0"}, {"name": "loop1"}]}]' > $@
+	$(YQ) '(select(.spec.storage) | .spec.storage.useAllDevices) = false' > $@
+ifeq ($(DEVICE_MODE), raw)
+	$(YQ) -i '(select(.spec.storage) | .spec.storage.nodes) = [{"name": "minikube", "devices": [{"name": "loop0"}, {"name": "loop1"}]}]' $@
+else ifeq ($(DEVICE_MODE), pvc)
+	$(YQ) -i '(select(.spec.storage) | .spec.storage.storageClassDeviceSets) = [{"name": "set1", "count": $(OSD_COUNT), "volumeClaimTemplates": [{"metadata": {"name": "data0"}, "spec": {"resources":{"requests":{"storage": "6Gi"}}, "storageClassName": "local", "volumeMode": "Block", "accessModes": ["ReadWriteOnce"]}}]}]' $@
+else
+	echo "Invalid DEVICE_MODE $(DEVICE_MODE)"
+	rm $@
+	exit 1
+endif
 
 $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml: $(MANIFEST_DIR)/object-bucket-claim-delete.yaml | $(MANIFEST_DIR) $(YQ)
 	$(YQ) '.metadata.namespace = "$(OBJECT_STORE_CONSUMER_NS)"' $< > $@
@@ -57,7 +67,7 @@ gen: $(MANIFEST_FILES) $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-clust
 
 .PHONY: create-cluster
 create-cluster: $(MINIKUBE)
-	$(MINIKUBE) start --driver=docker --cpus=2 --memory=2g --disk-size 10gb
+	$(MINIKUBE) start --driver=docker --cpus=2 --disk-size 10gb
 	for i in $$(seq 0 $$(expr $(OSD_COUNT) - 1)); do \
 		dd if=/dev/zero of=loop$${i} bs=1 count=0 seek=6G; \
 		sudo losetup /dev/loop$${i} loop$${i}; \
@@ -67,9 +77,19 @@ create-cluster: $(MINIKUBE)
 	$(MINIKUBE) ssh -- docker pull quay.io/ceph/ceph:v$(CEPH_VERSION)
 
 .PHONY: deploy
-deploy: $(KUBECTL) $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml
+deploy: $(KUBECTL) $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml pv
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/crds.yaml -f $(MANIFEST_DIR)/common.yaml -f $(MANIFEST_DIR)/my-operator.yaml
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/my-cluster-test.yaml -f $(MANIFEST_DIR)/toolbox.yaml
+
+.PHONYE: pv
+pv: $(MANIFEST_DIR)/pv-template.yaml
+ifeq ($(DEVICE_MODE), pvc)
+	for i in $$(seq 0 $$(expr $(OSD_COUNT) - 1)); do \
+		$(YQ) ".metadata.name = \"pv$${i}\"" $< | \
+		$(YQ) ".spec.local.path = \"/dev/loop$${i}\"" | \
+		$(KUBECTL) apply -f -; \
+	done
+endif
 
 .PHONY: rgw
 rgw: $(KUBECTL) $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bucket-delete.yaml $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml
