@@ -10,6 +10,7 @@ MINIKUBE := $(BIN_DIR)/minikube_$(MINIKUBE_VERSION)
 YQ := $(BIN_DIR)/yq_$(YQ_VERSION)
 
 OSD_COUNT := 1
+OBJECT_STORE_CONSUMER_NS := default
 
 MANIFEST_DIR := manifest
 
@@ -48,6 +49,9 @@ $(MANIFEST_DIR)/my-cluster-test.yaml: $(MANIFEST_DIR)/cluster-test.yaml | $(MANI
 	$(YQ) '(select(.spec.storage) | .spec.storage.useAllDevices) = false' | \
 	$(YQ) '(select(.spec.storage) | .spec.storage.nodes) = [{"name": "minikube", "devices": [{"name": "loop0"}, {"name": "loop1"}]}]' > $@
 
+$(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml: $(MANIFEST_DIR)/object-bucket-claim-delete.yaml | $(MANIFEST_DIR) $(YQ)
+	$(YQ) '.metadata.namespace = "$(OBJECT_STORE_CONSUMER_NS)"' $< > $@
+
 .PHONY: gen
 gen: $(MANIFEST_FILES) $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml
 
@@ -68,10 +72,10 @@ deploy: $(KUBECTL) $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIF
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/my-cluster-test.yaml -f $(MANIFEST_DIR)/toolbox.yaml
 
 .PHONY: rgw
-rgw: $(KUBECTL) $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bucket-delete.yaml $(MANIFEST_DIR)/object-bucket-claim-delete.yaml
+rgw: $(KUBECTL) $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bucket-delete.yaml $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/object-test.yaml
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/storageclass-bucket-delete.yaml
-	$(KUBECTL) apply -f $(MANIFEST_DIR)/object-bucket-claim-delete.yaml
+	$(KUBECTL) apply -f $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml
 
 .PHONY: clean
 clean:
