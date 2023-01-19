@@ -9,14 +9,18 @@ KUBECTL := $(BIN_DIR)/kubectl_$(KUBECTL_VERSION)
 MINIKUBE := $(BIN_DIR)/minikube_$(MINIKUBE_VERSION)
 YQ := $(BIN_DIR)/yq_$(YQ_VERSION)
 
+# TODO: Support OSD_COUNT for raw mode (Currently, it cannot be changed)
 OSD_COUNT := 1
 OBJECT_STORE_CONSUMER_NS := default
 # "raw" or "pvc"
-DEVICE_MODE := raw
+DEVICE_MODE := pvc
+# "docker" or "kvm"
+DRIVER=docker
 
 MANIFEST_DIR := manifest
 
 MANIFEST_FILES := $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/operator.yaml $(MANIFEST_DIR)/cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bucket-delete.yaml $(MANIFEST_DIR)/object-bucket-claim-delete.yaml
+RBD_MANIFEST_FILES := $(MANIFEST_DIR)/storageclass-test.yaml $(MANIFEST_DIR)/pvc.yaml
 
 $(BIN_DIR):
 	mkdir $(BIN_DIR)
@@ -42,6 +46,9 @@ $(MANIFEST_DIR):
 $(MANIFEST_FILES): | $(MANIFEST_DIR)
 	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/$(notdir $@) -o $@
 
+$(RBD_MANIFEST_FILES): | $(MANIFEST_DIR)
+	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/csi/rbd/$(notdir $@) -o $@
+
 $(MANIFEST_DIR)/my-operator.yaml: $(MANIFEST_DIR)/operator.yaml | $(MANIFEST_DIR) $(YQ)
 	$(YQ) '(select(.metadata.name == "rook-ceph-operator-config") | .data.ROOK_CEPH_ALLOW_LOOP_DEVICES) = "true"' $< > $@
 
@@ -52,7 +59,7 @@ $(MANIFEST_DIR)/my-cluster-test.yaml: $(MANIFEST_DIR)/cluster-test.yaml | $(MANI
 ifeq ($(DEVICE_MODE), raw)
 	$(YQ) -i '(select(.spec.storage) | .spec.storage.nodes) = [{"name": "minikube", "devices": [{"name": "loop0"}, {"name": "loop1"}]}]' $@
 else ifeq ($(DEVICE_MODE), pvc)
-	$(YQ) -i '(select(.spec.storage) | .spec.storage.storageClassDeviceSets) = [{"name": "set1", "count": $(OSD_COUNT), "volumeClaimTemplates": [{"metadata": {"name": "data0"}, "spec": {"resources":{"requests":{"storage": "6Gi"}}, "storageClassName": "local", "volumeMode": "Block", "accessModes": ["ReadWriteOnce"]}}]}]' $@
+	$(YQ) -i '(select(.spec.storage) | .spec.storage.storageClassDeviceSets) = [{"name": "set1", "count": $(OSD_COUNT), "volumeClaimTemplates": [{"metadata": {"name": "data0"}, "spec": {"resources":{"requests":{"storage": "6Gi"}}, "storageClassName": "", "volumeMode": "Block", "accessModes": ["ReadWriteOnce"]}}]}]' $@
 else
 	echo "Invalid DEVICE_MODE $(DEVICE_MODE)"
 	rm $@
@@ -63,14 +70,17 @@ $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml: $(MANIFEST_DIR)/object-bucke
 	$(YQ) '.metadata.namespace = "$(OBJECT_STORE_CONSUMER_NS)"' $< > $@
 
 .PHONY: gen
-gen: $(MANIFEST_FILES) $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml
+gen: $(MANIFEST_FILES) $(RBD_MANIFEST_FILES) $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml
 
+# TODO: Create loop device in VM when DRIVER is kvm
 .PHONY: create-cluster
 create-cluster: $(MINIKUBE)
-	$(MINIKUBE) start --driver=docker --cpus=2 --disk-size 10gb
+	$(MINIKUBE) start --driver=$(DRIVER) --cpus=2 --memory 6g --disk-size 10gb
 	for i in $$(seq 0 $$(expr $(OSD_COUNT) - 1)); do \
-		dd if=/dev/zero of=loop$${i} bs=1 count=0 seek=6G; \
-		sudo losetup /dev/loop$${i} loop$${i}; \
+		if [ $(DRIVER) = "docker" ]; then \
+			dd if=/dev/zero of=loop$${i} bs=1 count=0 seek=6G; \
+			sudo losetup /dev/loop$${i} loop$${i}; \
+		fi \
 	done
 	lsblk
 	$(MINIKUBE) ssh -- docker pull rook/ceph:v$(ROOK_VERSION)
@@ -96,6 +106,10 @@ rgw: $(KUBECTL) $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bu
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/object-test.yaml
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/storageclass-bucket-delete.yaml
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml
+
+.PHONY: rbd
+rbd: $(KUBECTL) $(MANIFEST_DIR)/storageclass-test.yaml
+	$(KUBECTL) apply -f $(MANIFEST_DIR)/storageclass-test.yaml
 
 .PHONY: clean
 clean:
