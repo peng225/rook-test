@@ -72,17 +72,14 @@ $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml: $(MANIFEST_DIR)/object-bucke
 .PHONY: gen
 gen: $(MANIFEST_FILES) $(RBD_MANIFEST_FILES) $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml
 
-# TODO: Create loop device in VM when DRIVER is kvm
 .PHONY: create-cluster
 create-cluster: $(MINIKUBE)
 	$(MINIKUBE) start --driver=$(DRIVER) --cpus=2 --memory 6g --disk-size 10gb
 	for i in $$(seq 0 $$(expr $(OSD_COUNT) - 1)); do \
-		if [ $(DRIVER) = "docker" ]; then \
-			dd if=/dev/zero of=loop$${i} bs=1 count=0 seek=6G; \
-			sudo losetup /dev/loop$${i} loop$${i}; \
-		fi \
+		$(MINIKUBE) ssh -- dd if=/dev/zero of=loop$${i} bs=1 count=0 seek=6G; \
+		$(MINIKUBE) ssh -- sudo losetup /dev/loop$${i} loop$${i}; \
 	done
-	lsblk
+	$(MINIKUBE) ssh -- lsblk
 	$(MINIKUBE) ssh -- docker pull rook/ceph:v$(ROOK_VERSION)
 	$(MINIKUBE) ssh -- docker pull quay.io/ceph/ceph:v$(CEPH_VERSION)
 
@@ -113,9 +110,8 @@ rbd: $(KUBECTL) $(MANIFEST_DIR)/storageclass-test.yaml
 
 .PHONY: clean
 clean:
+	if [ $(DRIVER) = "docker" ]; then \
+		sudo losetup -D; \
+	fi
 	$(MINIKUBE) stop
 	$(MINIKUBE) delete
-	sudo losetup -D
-	for i in $$(seq 0 $$(expr $(OSD_COUNT) - 1)); do \
-		rm -rf loop$${i}; \
-	done

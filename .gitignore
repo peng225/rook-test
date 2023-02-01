@@ -1,4 +1,3 @@
 bin
 manifest/*
 !manifest/pv-template.yaml
-loop*
