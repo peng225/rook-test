@@ -10,7 +10,7 @@ If you would like to use RBD, please set up kvm.
 1. Edit `Makefile` to set version parameters (eg. `ROOK_VERSION`) and `OSD_COUNT`.
    - If you would like to deploy RGW later, set `OBJECT_STORE_CONSUMER_NS`, too.
    - If you would like to deploy RBD later, set `DRIVER` to `kvm`.
-   - If you would like to deploy a PVC-based cluster, set `DEVICE_MODE`, too.
+   - If you would like to deploy OSD in the raw mode, set `DEVICE_MODE`, too.
 2. Run `make create-cluster`.
 3. Run `make gen` and edit manifests in the `manifest` directory as you like.
 4. Run `make deploy` and wait until all of OSDs start up.
