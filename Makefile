@@ -50,9 +50,11 @@ $(MANIFEST_FILES): | $(MANIFEST_DIR)
 $(RBD_MANIFEST_FILES): | $(MANIFEST_DIR)
 	curl -L https://github.com/rook/rook/raw/v$(ROOK_VERSION)/deploy/examples/csi/rbd/$(notdir $@) -o $@
 
+.PHONY: $(MANIFEST_DIR)/my-operator.yaml
 $(MANIFEST_DIR)/my-operator.yaml: $(MANIFEST_DIR)/operator.yaml | $(MANIFEST_DIR) $(YQ)
 	$(YQ) '(select(.metadata.name == "rook-ceph-operator-config") | .data.ROOK_CEPH_ALLOW_LOOP_DEVICES) = "true"' $< > $@
 
+.PHONY: $(MANIFEST_DIR)/my-cluster-test.yaml
 $(MANIFEST_DIR)/my-cluster-test.yaml: $(MANIFEST_DIR)/cluster-test.yaml | $(MANIFEST_DIR) $(YQ)
 	$(YQ) '(select(.spec.cephVersion) | .spec.cephVersion.image) = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' $< | \
 	$(YQ) '(select(.spec.storage) | .spec.storage.useAllNodes) = false' | \
@@ -67,6 +69,7 @@ else
 	exit 1
 endif
 
+.PHONY: $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml
 $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml: $(MANIFEST_DIR)/object-bucket-claim-delete.yaml | $(MANIFEST_DIR) $(YQ)
 	$(YQ) '.metadata.namespace = "$(OBJECT_STORE_CONSUMER_NS)"' $< > $@
 
