@@ -21,6 +21,7 @@ MANIFEST_DIR := manifest
 
 MANIFEST_FILES := $(MANIFEST_DIR)/crds.yaml $(MANIFEST_DIR)/common.yaml $(MANIFEST_DIR)/operator.yaml $(MANIFEST_DIR)/cluster-test.yaml $(MANIFEST_DIR)/toolbox.yaml $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bucket-delete.yaml $(MANIFEST_DIR)/object-bucket-claim-delete.yaml
 RBD_MANIFEST_FILES := $(MANIFEST_DIR)/storageclass-test.yaml $(MANIFEST_DIR)/pvc.yaml
+RGW_MANIFEST_FILES := $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bucket-delete.yaml $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml
 
 $(BIN_DIR):
 	mkdir $(BIN_DIR)
@@ -70,7 +71,7 @@ $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml: $(MANIFEST_DIR)/object-bucke
 	$(YQ) '.metadata.namespace = "$(OBJECT_STORE_CONSUMER_NS)"' $< > $@
 
 .PHONY: gen
-gen: $(MANIFEST_FILES) $(RBD_MANIFEST_FILES) $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml
+gen: $(MANIFEST_FILES) $(RBD_MANIFEST_FILES) $(RGW_MANIFEST_FILES) $(MANIFEST_DIR)/my-operator.yaml $(MANIFEST_DIR)/my-cluster-test.yaml
 
 .PHONY: create-cluster
 create-cluster: $(MINIKUBE)
@@ -99,7 +100,7 @@ ifeq ($(DEVICE_MODE), pvc)
 endif
 
 .PHONY: rgw
-rgw: $(KUBECTL) $(MANIFEST_DIR)/object-test.yaml $(MANIFEST_DIR)/storageclass-bucket-delete.yaml $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml
+rgw: $(KUBECTL) $(RGW_MANIFEST_FILES)
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/object-test.yaml
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/storageclass-bucket-delete.yaml
 	$(KUBECTL) apply -f $(MANIFEST_DIR)/my-object-bucket-claim-delete.yaml
