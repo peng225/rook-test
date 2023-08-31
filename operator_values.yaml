@@ -1,0 +1,10 @@
+image:
+  tag:
+allowLoopDevices: true
+csi:
+  enableRbdDriver: false
+  enableCephfsDriver: false
+  enableCephfsSnapshotter: false
+  enableNFSSnapshotter: false
+  enableRBDSnapshotter: false
+resources:

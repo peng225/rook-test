@@ -1,0 +1,52 @@
+toolbox:
+  enabled: true
+  resources:
+configOverride: |
+  [global]
+  osd_pool_default_size = 1
+  mon_warn_on_pool_no_redundancy = false
+  bdev_flock_retry = 20
+  bluefs_buffered_io = false
+  mon_data_avail_warn = 10
+cephClusterSpec:
+  cephVersion:
+    image:
+    dataDirHostPath: /data/rook
+  mon:
+    count: 1
+    allowMultiplePerNode: true
+  mgr:
+    count: 1
+    allowMultiplePerNode: true
+  dashboard:
+    enabled: false
+  crashCollector:
+    disable: true
+  healthCheck:
+    daemonHealth:
+      mon:
+        timeout: 600s
+  storage:
+    useAllNodes: false
+    useAllDevices: false
+    storageClassDeviceSets:
+    - name: set1
+      count: 1
+      volumeClaimTemplates:
+      - metadata:
+          name: data
+        spec:
+          resources:
+            requests:
+              storage: 6Gi
+          storageClassName: ""
+          volumeMode: Block
+          accessModes:
+            - ReadWriteOnce
+  resources:
+    mgr:
+    mon:
+    osd:
+cephFileSystems:
+cephBlockPools:
+cephObjectStores:
