@@ -14,9 +14,9 @@ HELM := $(BIN_DIR)/helm_$(HELM_VERSION)
 OSD_COUNT := 1
 OBJECT_STORE_CONSUMER_NS := default
 # "raw" or "pvc"
-DEVICE_MODE := pvc
+DEVICE_MODE ?= pvc
 # "docker" or "kvm"
-DRIVER=docker
+DRIVER := docker
 
 MANIFEST_DIR := manifest
 
@@ -47,19 +47,19 @@ $(HELM): | $(BIN_DIR)
 generate: overrided_operator_values.yaml overrided_pvc_cluster_values.yaml overrided_raw_cluster_values.yaml
 
 .PHONY: overrided_operator_values.yaml
-overrided_operator_values.yaml: operator_values.yaml | $(YQ)
-	$(YQ) '.image.tag = "v$(ROOK_VERSION)"' operator_values.yaml > $@
+overrided_operator_values.yaml: operator_values.yaml $(YQ)
+	$(YQ) '.image.tag = "v$(ROOK_VERSION)"' $< > $@
 
 .PHONY: overrided_pvc_cluster_values.yaml
-overrided_pvc_cluster_values.yaml: pvc_cluster_values.yaml | $(YQ)
-	$(YQ) '.cephClusterSpec.cephVersion.image = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' pvc_cluster_values.yaml | \
+overrided_pvc_cluster_values.yaml: pvc_cluster_values.yaml $(YQ)
+	$(YQ) '.cephClusterSpec.cephVersion.image = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' $< | \
 	$(YQ) '.cephClusterSpec.storage.storageClassDeviceSets[0].count = $(OSD_COUNT)' > $@
 
 .PHONY: overrided_raw_cluster_values.yaml
-overrided_raw_cluster_values.yaml: raw_cluster_values.yaml | $(YQ)
-	$(YQ) '.cephClusterSpec.cephVersion.image = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' raw_cluster_values.yaml > $@
+overrided_raw_cluster_values.yaml: raw_cluster_values.yaml $(YQ)
+	$(YQ) '.cephClusterSpec.cephVersion.image = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' $< > $@
 	for i in $$(seq 0 $$(expr $(OSD_COUNT) - 1)); do \
-		$(YQ) -i ".cephClusterSpec.storage.nodes[0].devices[$${i}] = \"loop$${i}\"" $@; \
+		$(YQ) -i ".cephClusterSpec.storage.nodes[0].devices[$${i}].name = \"loop$${i}\"" $@; \
 	done
 
 .PHONY: create-cluster
@@ -85,7 +85,7 @@ else ifeq ($(DEVICE_MODE), raw)
 endif
 
 .PHONYE: pv
-pv: $(MANIFEST_DIR)/pv-template.yaml
+pv: $(MANIFEST_DIR)/pv-template.yaml $(YQ)
 ifeq ($(DEVICE_MODE), pvc)
 	for i in $$(seq 0 $$(expr $(OSD_COUNT) - 1)); do \
 		$(YQ) ".metadata.name = \"pv$${i}\"" $< | \

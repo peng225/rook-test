@@ -1,0 +1,28 @@
+name: Run test
+
+on:
+  push:
+    branches: [ "main" ]
+    paths-ignore:
+    - '**.md'
+  pull_request:
+    branches: [ "main" ]
+    paths-ignore:
+    - '**.md'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        device_mode: ["pvc", "raw"]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Purge snapd
+      run: sudo apt purge snapd
+    - name: Create cluster
+      run: make create-cluster
+    - name: Deploy rook/ceph cluster
+      run: make deploy DEVICE_MODE=${{ matrix.device_mode }}
+    - name: Clean up
+      run: make clean
