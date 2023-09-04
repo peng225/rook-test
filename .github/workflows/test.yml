@@ -24,5 +24,19 @@ jobs:
       run: make create-cluster
     - name: Deploy rook/ceph cluster
       run: make deploy DEVICE_MODE=${{ matrix.device_mode }}
+    - name: Wait for OSDs to start up
+      run: |-
+        COUNT=0
+        while [ $(kubectl get pod -n rook-ceph -l app=rook-ceph-osd --no-headers | wc -l) -eq 0 ]; do
+          echo "COUNT = ${COUNT}"
+          sleep 5
+          if [ ${COUNT} -eq 60 ]; then
+            echo "OSDs start up timeout."
+            kubectl get pod -n rook-ceph -l app=rook-ceph-osd
+            exit 1
+          fi
+          COUNT=$(expr ${COUNT} + 1)
+        done
+        kubectl wait pod -n rook-ceph --for=condition=Ready -l app=rook-ceph-osd --timeout 120s
     - name: Clean up
       run: make clean
