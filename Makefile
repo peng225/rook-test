@@ -44,19 +44,19 @@ $(HELM): | $(BIN_DIR)
 	rm -rf linux-amd64
 	chmod +x $(HELM)
 
-generate: overrided_operator_values.yaml overrided_pvc_cluster_values.yaml overrided_raw_cluster_values.yaml
+generate: $(MANIFEST_DIR)/overrided_operator_values.yaml $(MANIFEST_DIR)/overrided_pvc_cluster_values.yaml $(MANIFEST_DIR)/overrided_raw_cluster_values.yaml
 
-.PHONY: overrided_operator_values.yaml
-overrided_operator_values.yaml: operator_values.yaml $(YQ)
+.PHONY: $(MANIFEST_DIR)/overrided_operator_values.yaml
+$(MANIFEST_DIR)/overrided_operator_values.yaml: $(MANIFEST_DIR)/operator_values.yaml $(YQ)
 	$(YQ) '.image.tag = "v$(ROOK_VERSION)"' $< > $@
 
-.PHONY: overrided_pvc_cluster_values.yaml
-overrided_pvc_cluster_values.yaml: pvc_cluster_values.yaml $(YQ)
+.PHONY: $(MANIFEST_DIR)/overrided_pvc_cluster_values.yaml
+$(MANIFEST_DIR)/overrided_pvc_cluster_values.yaml: $(MANIFEST_DIR)/pvc_cluster_values.yaml $(YQ)
 	$(YQ) '.cephClusterSpec.cephVersion.image = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' $< | \
 	$(YQ) '.cephClusterSpec.storage.storageClassDeviceSets[0].count = $(OSD_COUNT)' > $@
 
-.PHONY: overrided_raw_cluster_values.yaml
-overrided_raw_cluster_values.yaml: raw_cluster_values.yaml $(YQ)
+.PHONY: $(MANIFEST_DIR)/overrided_raw_cluster_values.yaml
+$(MANIFEST_DIR)/overrided_raw_cluster_values.yaml: $(MANIFEST_DIR)/raw_cluster_values.yaml $(YQ)
 	$(YQ) '.cephClusterSpec.cephVersion.image = "quay.io/ceph/ceph:v$(CEPH_VERSION)"' $< > $@
 	for i in $$(seq 0 $$(expr $(OSD_COUNT) - 1)); do \
 		$(YQ) -i ".cephClusterSpec.storage.nodes[0].devices[$${i}].name = \"loop$${i}\"" $@; \
@@ -76,12 +76,12 @@ create-cluster: $(MINIKUBE)
 .PHONY: deploy
 deploy: $(KUBECTL) $(HELM) pv generate
 	$(HELM) repo add rook-release https://charts.rook.io/release
-	$(HELM) install --create-namespace --namespace rook-ceph rook-ceph rook-release/rook-ceph -f overrided_operator_values.yaml
+	$(HELM) install --create-namespace --namespace rook-ceph rook-ceph rook-release/rook-ceph -f $(MANIFEST_DIR)/overrided_operator_values.yaml
 	$(HELM) repo add rook-release https://charts.rook.io/release
 ifeq ($(DEVICE_MODE), pvc)
-	$(HELM) install --namespace rook-ceph rook-ceph-cluster rook-release/rook-ceph-cluster -f overrided_pvc_cluster_values.yaml
+	$(HELM) install --namespace rook-ceph rook-ceph-cluster rook-release/rook-ceph-cluster -f $(MANIFEST_DIR)/overrided_pvc_cluster_values.yaml
 else ifeq ($(DEVICE_MODE), raw)
-	$(HELM) install --namespace rook-ceph rook-ceph-cluster rook-release/rook-ceph-cluster -f overrided_raw_cluster_values.yaml
+	$(HELM) install --namespace rook-ceph rook-ceph-cluster rook-release/rook-ceph-cluster -f $(MANIFEST_DIR)/overrided_raw_cluster_values.yaml
 endif
 
 .PHONYE: pv
