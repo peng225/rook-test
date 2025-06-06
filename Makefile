@@ -69,12 +69,12 @@ create-cluster: $(MINIKUBE)
 .PHONY: deploy
 deploy: $(HELM) pv generate
 	$(HELM) repo add rook-release https://charts.rook.io/release
-	$(HELM) install --create-namespace --namespace rook-ceph rook-ceph rook-release/rook-ceph -f $(MANIFEST_DIR)/overrided_operator_values.yaml
-	$(HELM) repo add rook-release https://charts.rook.io/release
+	$(HELM) repo update
+	$(HELM) install --version ${ROOK_VERSION} --create-namespace --namespace rook-ceph rook-ceph rook-release/rook-ceph -f $(MANIFEST_DIR)/overrided_operator_values.yaml
 ifeq ($(DEVICE_MODE), pvc)
-	$(HELM) install --namespace rook-ceph rook-ceph-cluster rook-release/rook-ceph-cluster -f $(MANIFEST_DIR)/overrided_pvc_cluster_values.yaml
+	$(HELM) install --version ${ROOK_VERSION} --namespace rook-ceph rook-ceph-cluster rook-release/rook-ceph-cluster -f $(MANIFEST_DIR)/overrided_pvc_cluster_values.yaml
 else ifeq ($(DEVICE_MODE), raw)
-	$(HELM) install --namespace rook-ceph rook-ceph-cluster rook-release/rook-ceph-cluster -f $(MANIFEST_DIR)/overrided_raw_cluster_values.yaml
+	$(HELM) install --version ${ROOK_VERSION} --namespace rook-ceph rook-ceph-cluster rook-release/rook-ceph-cluster -f $(MANIFEST_DIR)/overrided_raw_cluster_values.yaml
 endif
 
 .PHONYE: pv
