@@ -1,7 +1,7 @@
 ROOK_VERSION := 1.17.1
 CEPH_VERSION := 19.2.2
 MINIKUBE_VERSION := 1.35.0
-YQ_VERSION := 4.44.3
+YQ_VERSION := 4.45.4
 HELM_VERSION := 3.18.2
 
 BIN_DIR := bin
@@ -57,7 +57,7 @@ $(MANIFEST_DIR)/overrided_raw_cluster_values.yaml: $(MANIFEST_DIR)/raw_cluster_v
 
 .PHONY: create-cluster
 create-cluster: $(MINIKUBE)
-	$(MINIKUBE) start --driver=$(DRIVER) --cpus=2 --memory 6g --disk-size 10gb
+	$(MINIKUBE) start --driver=$(DRIVER) --cpus=2 --memory 2200mb --disk-size 10gb
 	for i in $$(seq 0 $$(expr $(OSD_COUNT) - 1)); do \
 		$(MINIKUBE) ssh -- dd if=/dev/zero of=loop$${i} bs=1 count=0 seek=6G; \
 		$(MINIKUBE) ssh -- sudo losetup /dev/loop$${i} loop$${i}; \
