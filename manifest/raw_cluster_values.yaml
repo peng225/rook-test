@@ -11,7 +11,7 @@ configOverride: |
 cephClusterSpec:
   cephVersion:
     image:
-    dataDirHostPath: /data/rook
+  dataDirHostPath: /data/rook
   mon:
     count: 1
     allowMultiplePerNode: true
